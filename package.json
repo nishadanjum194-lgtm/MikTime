@@ -1,0 +1,28 @@
+{
+  "name": "miktime",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "productName": "MikTime",
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.anjum.miktime",
+    "productName": "MikTime",
+    "mac": {
+      "target": "dir",
+      "icon": "assets/miktime-icon-512.jpg",
+      "category": "public.app-category.utilities"
+    },
+    "files": [
+      "main.js",
+      "assets/**",
+      "renderer/**"
+    ]
+  }
+}
