@@ -1,47 +1,115 @@
-const $ = (s) => document.querySelector(s);
-const display = $('#display'), label = $('#label'), bar = $('#bar');
-const R = 95, C = 2 * Math.PI * R;
-bar.style.strokeDasharray = C;
+const $ = (selector) => document.querySelector(selector);
+const display = $('#display');
+const label = $('#label');
+const bar = $('#bar');
+const { clampMinutes, formatTime } = window.MikTimeUtils;
+const MAX_MINUTES = 12 * 60;
+const R = 95;
+const C = 2 * Math.PI * R;
 
+bar.style.width = '100%';
 let total = 25 * 60;
 let remaining = total;
 let running = false;
-let raf = null;
-let end = 0;
-
-function fmt(s) {
-  const m = Math.floor(s / 60), sec = s % 60;
-  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-}
+let frame = null;
+let endAt = 0;
 let health = $('#health');
-for (let i = 0; i < 10; i++) { const p = document.createElement('div'); p.className='pip'; health.appendChild(p); }
 
-function setProgress() {
-  const frac = total ? remaining / total : 0;
-  const pct = Math.round(frac * 100);
-  bar.style.width = pct + '%';
-  display.textContent = fmt(Math.ceil(remaining));
-  const on = Math.round(frac * 10);
-  health.querySelectorAll('.pip').forEach((p,i)=> p.classList.toggle('on', i < on));
+for (let index = 0; index < 10; index += 1) {
+  const pip = document.createElement('div');
+  pip.className = 'pip';
+  health.append(pip);
+}
+
+function render() {
+  const fraction = total > 0 ? Math.max(0, Math.min(1, remaining / total)) : 0;
+  bar.style.width = (fraction * 100) + '%';
+  display.textContent = formatTime(Math.ceil(remaining));
+  const activePips = Math.round(fraction * 10);
+  health.querySelectorAll('.pip').forEach((pip, index) => {
+    pip.classList.toggle('on', index < activePips);
+  });
+}
+function notifyDone() {
+  label.textContent = 'DONE!';
+  label.classList.add('done');
+  document.title = 'Done! | MikTime';
+  try {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('MikTime', { body: 'Your focus session is complete.' });
+    }
+  } catch (_error) {}
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) {
+      const context = new AudioContextClass();
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.frequency.value = 880;
+      gain.gain.setValueAtTime(0.08, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.35);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + 0.35);
+    }
+  } catch (_error) {}
 }
 function tick() {
   if (!running) return;
-  remaining = Math.max(0, (end - Date.now()) / 1000);
-  setProgress();
-  if (remaining <= 0) { running = false; label.textContent = 'Done!'; try { new Audio('data:audio/wav;base64,UklGRlQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=') } catch (e) {} return; }
-  raf = requestAnimationFrame(tick);
+  remaining = Math.max(0, (endAt - Date.now()) / 1000);
+  render();
+  if (remaining <= 0) {
+    running = false;
+    frame = null;
+    notifyDone();
+    return;
+  }
+  frame = requestAnimationFrame(tick);
 }
-function start() { if (running) return; if (remaining <= 0) remaining = total; end = Date.now() + remaining * 1000; running = true; label.textContent = 'Focus'; raf = requestAnimationFrame(tick); }
-function pause() { running = false; if (raf) cancelAnimationFrame(raf); raf = null; }
-function reset() { pause(); remaining = total; setProgress(); label.textContent = 'Focus'; }
-$('#start').onclick = start;
-$('#pause').onclick = pause;
-$('#reset').onclick = reset;
-$('#set').onclick = () => { const m = Number($('#mins').value) || 25; total = m * 60; reset(); };
-
-document.querySelectorAll('.presets button').forEach(b => {
-  b.onclick = () => { const m = Number(b.dataset.m); total = m * 60; $('#mins').value = m; reset(); };
+function start() {
+  if (running) return;
+  if (remaining <= 0) reset();
+  label.textContent = 'FOCUS';
+  label.classList.remove('done');
+  document.title = 'MikTime';
+  endAt = Date.now() + remaining * 1000;
+  running = true;
+  frame = requestAnimationFrame(tick);
+}
+function pause() {
+  if (!running) return;
+  running = false;
+  if (frame !== null) cancelAnimationFrame(frame);
+  frame = null;
+  remaining = Math.max(0, (endAt - Date.now()) / 1000);
+  render();
+}
+function reset() {
+  pause();
+  remaining = total;
+  label.textContent = 'FOCUS';
+  label.classList.remove('done');
+  document.title = 'MikTime';
+  render();
+}
+function setMinutes(value) {
+  const minutes = clampMinutes(value, MAX_MINUTES);
+  if (minutes === null) {
+    $('#mins').setCustomValidity('Enter a duration between 1 and 720 minutes.');
+    $('#mins').reportValidity();
+    return;
+  }
+  $('#mins').setCustomValidity('');
+  total = minutes * 60;
+  $('#mins').value = String(minutes);
+  reset();
+}
+$('#start').addEventListener('click', start);
+$('#pause').addEventListener('click', pause);
+$('#reset').addEventListener('click', reset);
+$('#set').addEventListener('click', () => setMinutes($('#mins').value));
+document.querySelectorAll('.presets button').forEach((button) => {
+  button.addEventListener('click', () => setMinutes(button.dataset.m));
 });
-
-setProgress();
-EOF
+render();
