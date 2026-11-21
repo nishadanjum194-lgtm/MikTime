@@ -1,170 +1,210 @@
 const $ = (selector) => document.querySelector(selector);
+
 const display = $('#display');
 const label = $('#label');
-const bar = $('#bar');
-const health = $('#health');
-const R = 95;
-const C = 2 * Math.PI * R;
-bar.style.strokeDasharray = C;
+const startButton = $('#start');
+const progressRing = $('#progressRing');
+const progressPercent = $('#progressPercent');
+const messagePreview = $('#messagePreview');
+const settingsPanel = $('#settingsPanel');
 
 let total = 25 * 60;
 let remaining = total;
 let running = false;
-let raf = null;
-let end = 0;
+let endAt = 0;
+let ticker = null;
+let messages = [];
 
-function fmt(seconds) {
-  const minutes = Math.floor(seconds / 60);
-  const secs = seconds % 60;
+function formatTime(seconds) {
+  const safe = Math.max(0, Math.ceil(seconds));
+  const minutes = Math.floor(safe / 60);
+  const secs = safe % 60;
   return String(minutes).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
 }
 
-for (let i = 0; i < 10; i += 1) {
-  const pip = document.createElement('div');
-  pip.className = 'pip';
-  health.appendChild(pip);
+function setProgress() {
+  const fraction = total > 0 ? Math.max(0, Math.min(1, remaining / total)) : 0;
+  const angle = fraction * 360;
+  const percent = Math.round(fraction * 100);
+
+  display.textContent = formatTime(remaining);
+  progressPercent.textContent = percent + '%';
+  progressRing.style.background =
+    'conic-gradient(var(--accent) 0deg ' + angle + 'deg, rgba(255,255,255,0.10) ' + angle + 'deg 360deg)';
 }
 
-function setProgress() {
-  const fraction = total ? remaining / total : 0;
-  bar.style.width = Math.round(fraction * 100) + '%';
-  display.textContent = fmt(Math.ceil(remaining));
-  const activePips = Math.round(fraction * 10);
-  health.querySelectorAll('.pip').forEach((pip, index) => {
-    pip.classList.toggle('on', index < activePips);
-  });
+function setStatus(text, done = false) {
+  label.textContent = text;
+  label.classList.toggle('done', done);
+}
+
+function stopTicker() {
+  if (ticker !== null) window.clearInterval(ticker);
+  ticker = null;
+}
+
+function updateButtons() {
+  startButton.textContent = running ? 'Pause' : (remaining < total && remaining > 0 ? 'Resume' : 'Start');
+  startButton.setAttribute('aria-label', running ? 'Pause timer' : 'Start timer');
 }
 
 function tick() {
   if (!running) return;
-  remaining = Math.max(0, (end - Date.now()) / 1000);
+  remaining = Math.max(0, (endAt - Date.now()) / 1000);
   setProgress();
+
   if (remaining <= 0) {
     running = false;
-    raf = null;
-    label.textContent = 'Done!';
-    return;
+    stopTicker();
+    setStatus('Session complete', true);
+    updateButtons();
   }
-  raf = requestAnimationFrame(tick);
 }
 
 function start() {
-  if (running) return;
+  if (running) {
+    pause();
+    return;
+  }
+
   if (remaining <= 0) remaining = total;
-  end = Date.now() + remaining * 1000;
+  endAt = Date.now() + remaining * 1000;
   running = true;
-  label.textContent = 'Focus';
-  raf = requestAnimationFrame(tick);
+  setStatus('Stay with it');
+  updateButtons();
+  tick();
+  ticker = window.setInterval(tick, 250);
 }
 
 function pause() {
+  if (running) {
+    remaining = Math.max(0, (endAt - Date.now()) / 1000);
+  }
   running = false;
-  if (raf !== null) cancelAnimationFrame(raf);
-  raf = null;
+  stopTicker();
+  setProgress();
+  setStatus('Paused');
+  updateButtons();
 }
 
 function reset() {
-  pause();
+  running = false;
+  stopTicker();
   remaining = total;
   setProgress();
-  label.textContent = 'Focus';
+  setStatus('Ready when you are');
+  updateButtons();
 }
 
-$('#start').onclick = start;
-$('#pause').onclick = pause;
-$('#reset').onclick = reset;
+startButton.addEventListener('click', start);
+$('#reset').addEventListener('click', reset);
 
-if (window.electronAPI) {
-  const cornerButton = $('#corner');
-  const normalButton = $('#normal');
-  if (cornerButton) cornerButton.onclick = () => window.electronAPI.cornerMode().catch(console.error);
-  if (normalButton) normalButton.onclick = () => window.electronAPI.normalMode().catch(console.error);
+function markPreset(minutes) {
+  document.querySelectorAll('.preset').forEach((button) => {
+    button.classList.toggle('active', Number(button.dataset.m) === minutes);
+  });
+  $('#mins').value = minutes;
 }
 
-$('#set').onclick = () => {
-  const minutes = Number($('#mins').value);
-  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 180) {
-    label.textContent = 'Choose 1–180 min';
-    return;
-  }
-  total = minutes * 60;
-  reset();
-};
-
-document.querySelectorAll('.presets button').forEach(button => {
-  button.onclick = () => {
+document.querySelectorAll('.preset').forEach((button) => {
+  button.addEventListener('click', () => {
     const minutes = Number(button.dataset.m);
     if (!Number.isInteger(minutes) || minutes < 1 || minutes > 180) return;
     total = minutes * 60;
-    $('#mins').value = minutes;
+    markPreset(minutes);
     reset();
-  };
+    settingsPanel.classList.remove('open');
+  });
 });
 
-const msgsEl = $('#msgs');
-let stack = [];
-try {
-  const saved = JSON.parse(localStorage.getItem('miktime_msgs') || '[]');
-  if (Array.isArray(saved)) stack = saved.filter(message => typeof message === 'string').slice(0, 10);
-} catch {
-  localStorage.removeItem('miktime_msgs');
+$('#set').addEventListener('click', () => {
+  const minutes = Number($('#mins').value);
+  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 180) {
+    setStatus('Choose 1–180 minutes');
+    return;
+  }
+  total = minutes * 60;
+  markPreset(minutes);
+  reset();
+  settingsPanel.classList.remove('open');
+});
+
+function persistMessages() {
+  try {
+    window.localStorage.setItem('miktime_msgs', JSON.stringify(messages));
+  } catch (error) {
+    console.error('Could not save MikTime messages:', error);
+  }
 }
 
-function renderStack() {
-  msgsEl.replaceChildren();
-  stack.forEach(message => {
-    const element = document.createElement('div');
-    element.className = 'bigmsg';
-    element.textContent = message;
-    msgsEl.appendChild(element);
+function renderMessages() {
+  const list = $('#messageList');
+  list.replaceChildren();
+
+  messages.forEach((message) => {
+    const item = document.createElement('div');
+    item.className = 'saved-message';
+    item.textContent = message;
+    list.appendChild(item);
   });
+
+  const latest = messages[0] || '';
+  messagePreview.textContent = latest;
+  messagePreview.classList.toggle('visible', Boolean(latest));
 }
 
-$('#msgset').onclick = () => {
-  const message = $('#msg').value.trim().slice(0, 160);
-  if (!message) return;
-  stack.unshift(message);
-  if (stack.length > 10) stack.pop();
-  try { localStorage.setItem('miktime_msgs', JSON.stringify(stack)); }
-  catch (error) { console.error('Could not save messages:', error); }
-  renderStack();
+try {
+  const saved = JSON.parse(window.localStorage.getItem('miktime_msgs') || '[]');
+  if (Array.isArray(saved)) {
+    messages = saved.filter((message) => typeof message === 'string').slice(0, 10);
+  }
+} catch {
+  messages = [];
+}
+
+$('#msgset').addEventListener('click', () => {
+  const value = $('#msg').value.trim().slice(0, 160);
+  if (!value) return;
+  messages.unshift(value);
+  messages = messages.slice(0, 10);
+  persistMessages();
+  renderMessages();
   $('#msg').value = '';
-};
+});
 
-$('#msgclear').onclick = () => {
-  stack = [];
-  localStorage.removeItem('miktime_msgs');
-  renderStack();
-};
+$('#msgclear').addEventListener('click', () => {
+  messages = [];
+  persistMessages();
+  renderMessages();
+});
 
-renderStack();
+$('#settingsToggle').addEventListener('click', () => {
+  const isOpen = settingsPanel.classList.toggle('open');
+  $('#settingsToggle').setAttribute('aria-expanded', String(isOpen));
+});
+
+$('#close').addEventListener('click', () => {
+  if (window.electronAPI && typeof window.electronAPI.close === 'function') {
+    window.electronAPI.close().catch(console.error);
+  } else {
+    window.close();
+  }
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') settingsPanel.classList.remove('open');
+});
+
+document.addEventListener('click', (event) => {
+  if (!settingsPanel.classList.contains('open')) return;
+  if (settingsPanel.contains(event.target) || event.target === $('#settingsToggle')) return;
+  settingsPanel.classList.remove('open');
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && running) tick();
+});
+
+renderMessages();
 setProgress();
-
-function scaleCard() {
-  const scale = Math.max(0.6, Math.min(window.innerWidth / 360, window.innerHeight / 440));
-  document.body.style.zoom = scale;
-}
-window.addEventListener('resize', scaleCard);
-scaleCard();
-
-const resizeHandle = document.getElementById('resizeHandle');
-if (resizeHandle && window.electronAPI) {
-  resizeHandle.onmousedown = event => {
-    event.preventDefault();
-    const startX = event.screenX;
-    const startY = event.screenY;
-    const startWidth = window.innerWidth;
-    const startHeight = window.innerHeight;
-    const move = moveEvent => {
-      const width = Math.max(216, startWidth + moveEvent.screenX - startX);
-      const height = Math.max(264, startHeight + moveEvent.screenY - startY);
-      window.electronAPI.resizeWindow(width, height).catch(console.error);
-    };
-    const up = () => {
-      document.removeEventListener('mousemove', move);
-      document.removeEventListener('mouseup', up);
-    };
-    document.addEventListener('mousemove', move);
-    document.addEventListener('mouseup', up);
-  };
-}
+updateButtons();

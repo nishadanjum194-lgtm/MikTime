@@ -1,6 +1,5 @@
 const { contextBridge, ipcRenderer } = require('electron');
-contextBridge.exposeInMainWorld('electronAPI', {
-  cornerMode: () => ipcRenderer.invoke('window:corner'),
-  normalMode: () => ipcRenderer.invoke('window:normal'),
-  resizeWindow: (w, h) => ipcRenderer.invoke('window:resize', { w, h }),
-});
+
+contextBridge.exposeInMainWorld('electronAPI', Object.freeze({
+  close: () => ipcRenderer.invoke('window:close')
+}));

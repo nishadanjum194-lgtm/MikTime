@@ -1,79 +1,408 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8"/>
-<title>MikTime</title>
-<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-<style>
-:root{--bg:#0b0f1a;--cyan:#3cf2ff;--magenta:#ff3cff;--green:#3cff72;--red:#ff4d4d;--amber:#ffc94d;}
-html,body{margin:0;height:100%;font-family:'Press Start 2P',monospace;color:#e8f7ff;background:transparent;}
-body{display:flex;align-items:center;justify-content:center;}
-.card{width:360px;height:440px;box-sizing:border-box;background:linear-gradient(#10162a,#060914);border:4px solid var(--green);box-shadow:0 0 0 2px #060914,0 0 24px rgba(60,255,114,.35);
-  padding:16px;display:flex;flex-direction:column;gap:12px;align-items:center;image-rendering:pixelated;position:relative;-webkit-app-region:drag;transform-origin:center center;}
-.title{font-size:clamp(11px,3vw,16px);color:var(--green);text-shadow:0 0 6px var(--green);letter-spacing:1px}
-.close{-webkit-app-region:no-drag;position:absolute;top:6px;right:10px;cursor:pointer;color:var(--red);font-size:14px;font-weight:700}
-.head{font-size:clamp(8px,2vw,10px);opacity:.8;margin-top:-6px}
-.timer{font-size:clamp(24px,8vw,48px);color:var(--amber);text-shadow:0 0 8px var(--amber);letter-spacing:2px}
-.label{font-size:9px;color:var(--cyan);margin-top:2px}
-.barwrap{width:100%;height:24px;border:3px solid #e8f7ff;background:#000;padding:2px;-webkit-app-region:no-drag;image-rendering:pixelated}
-.bar{height:100%;width:100%;background:repeating-linear-gradient(90deg,var(--green) 0 8px,transparent 8px 10px);transition:width .2s linear,image 0}
-.health{display:grid;grid-template-columns:repeat(10,1fr);gap:2px;width:100%;height:16px;-webkit-app-region:no-drag}
-.pip{background:#1a2240;border:1px solid #2d3a66}
-.pip.on{background:var(--red);box-shadow:0 0 4px var(--red)}
-.btns{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;-webkit-app-region:no-drag}
-button{font-family:inherit;font-size:9px;color:#060914;padding:8px 4px;border:none;cursor:pointer;background:var(--green);box-shadow:inset -2px -2px 0 #1a6b34,inset 2px 2px 0 #aaffc4}
-button:hover{filter:brightness(1.2)}
-button.warn{background:var(--amber);box-shadow:inset -2px -2px 0 #6b4a00,inset 2px 2px 0 #ffe4a0}
-button.danger{background:var(--red);box-shadow:inset -2px -2px 0 #6b0000,inset 2px 2px 0 #ffa0a0;color:#fff}
-.presets{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%;-webkit-app-region:no-drag}
-.custom{display:flex;gap:6px;width:100%;-webkit-app-region:no-drag}
-.custom input{flex:1;font-family:inherit;font-size:9px;color:var(--cyan);background:#000;border:3px solid var(--cyan);padding:6px}
-.custom button{background:var(--cyan);box-shadow:inset -2px -2px 0 #0a7a88,inset 2px 2px 0 #b8ffff}
-.bigmsg{font-size:14px;color:var(--amber);text-shadow:0 0 10px var(--amber);text-align:center;margin:2px 0 4px;padding:6px 8px;border:3px solid var(--amber);background:#0b0f1a;word-wrap:break-word;max-width:320px;-webkit-app-region:no-drag;}
-.hint{font-size:7px;opacity:.7;text-align:center}
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>MikTime</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --surface: rgba(35, 39, 31, 0.97);
+      --surface-soft: rgba(49, 57, 41, 0.94);
+      --surface-raised: #46533a;
+      --accent: #f4c58b;
+      --accent-deep: #789653;
+      --moss: #789653;
+      --text: #fff4df;
+      --muted: #b8b19d;
+      --line: rgba(255, 239, 207, 0.15);
+      --danger: #eaa28b;
+    }
 
-@keyframes blink{0%,50%{opacity:1}51%,100%{opacity:0}}
-.done{color:var(--magenta);animation:blink .8s infinite}
-</style>
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: transparent;
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
+      user-select: none;
+    }
+
+    body { padding: 0; }
+
+    .widget {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 12px 14px 11px;
+      overflow: hidden;
+      border: 1px solid rgba(177, 199, 137, 0.25);
+      border-radius: 23px;
+      background:
+        radial-gradient(ellipse at 7% 0%, rgba(120, 150, 83, 0.16), transparent 48%),
+        linear-gradient(145deg, rgba(45, 52, 38, 0.99), var(--surface) 58%);
+      box-shadow:
+        0 12px 30px rgba(0, 0, 0, 0.36),
+        inset 0 1px 0 rgba(255, 255, 255, 0.07);
+      -webkit-app-region: no-drag;
+    }
+
+    .topline {
+      min-height: 20px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .brand-mark {
+      width: 8px;
+      height: 8px;
+      flex: 0 0 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 11px rgba(244, 197, 139, 0.65);
+    }
+
+    .brand {
+      font-size: 10px;
+      font-weight: 750;
+      letter-spacing: 1.5px;
+      color: #f8ead1;
+    }
+
+    .mode {
+      margin-left: 2px;
+      padding: 4px 7px;
+      border: 1px solid rgba(244, 197, 139, 0.25);
+      border-radius: 999px;
+      background: rgba(244, 197, 139, 0.10);
+      color: var(--moss);
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+    }
+
+    .top-spacer { flex: 1; }
+
+    .icon-button {
+      width: 23px;
+      height: 23px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.045);
+      color: #d8c8a9;
+      font-size: 13px;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .icon-button:hover { background: rgba(255, 255, 255, 0.11); color: white; }
+    .icon-button.close { color: #d8c8a9; }
+
+    .timer-row {
+      height: 61px;
+      display: grid;
+      grid-template-columns: 59px 1fr;
+      align-items: center;
+      column-gap: 11px;
+    }
+
+    .progress-ring {
+      width: 58px;
+      height: 58px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: conic-gradient(var(--accent) 0deg, rgba(255, 238, 202, 0.10) 0deg);
+      box-shadow: 0 0 16px rgba(244, 197, 139, 0.13);
+    }
+
+    .ring-inner {
+      width: 47px;
+      height: 47px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 50%;
+      background: #222a1e;
+      color: var(--accent);
+      font-size: 10px;
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .timer-copy {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 1px;
+    }
+
+    .timer {
+      font-size: 39px;
+      font-weight: 650;
+      line-height: 1;
+      letter-spacing: -2.3px;
+      font-variant-numeric: tabular-nums;
+      color: #fff2dc;
+    }
+
+    .timer-label {
+      min-height: 13px;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 9px;
+      font-weight: 550;
+      letter-spacing: 0.25px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .timer-label.done { color: var(--accent); }
+
+    .message-preview {
+      display: none;
+      max-width: 100%;
+      overflow: hidden;
+      color: #e4d8bc;
+      font-size: 8px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .message-preview.visible { display: block; }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      height: 31px;
+    }
+
+    button {
+      border: 0;
+      font-family: inherit;
+      font-weight: 650;
+      cursor: pointer;
+      outline: none;
+    }
+
+    button:focus-visible, input:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .primary-action {
+      min-width: 86px;
+      height: 31px;
+      padding: 0 15px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #3b3322;
+      font-size: 10px;
+      letter-spacing: 0.1px;
+      box-shadow: inset 0 -1px 0 rgba(76, 69, 39, 0.25);
+    }
+
+    .primary-action:hover { background: #ffd49c; }
+
+    .secondary-action {
+      min-width: 64px;
+      height: 31px;
+      padding: 0 13px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.065);
+      color: #f1e5cc;
+      font-size: 10px;
+    }
+
+    .secondary-action:hover { background: rgba(255, 255, 255, 0.12); }
+
+    .presets {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      align-items: center;
+      gap: 6px;
+      height: 24px;
+    }
+
+    .preset {
+      height: 23px;
+      padding: 0 6px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.055);
+      color: #d7cbb2;
+      font-size: 9px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .preset.active {
+      border-color: rgba(244, 197, 139, 0.42);
+      background: rgba(244, 197, 139, 0.16);
+      color: var(--accent);
+    }
+
+    .settings-panel {
+      position: absolute;
+      z-index: 5;
+      inset: 37px 9px 9px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      padding: 11px;
+      border: 1px solid rgba(244, 197, 139, 0.25);
+      border-radius: 16px;
+      background: rgba(39, 37, 30, 0.99);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.42);
+    }
+
+    .settings-panel.open { display: flex; }
+
+    .settings-title {
+      color: var(--accent);
+      font-size: 9px;
+      font-weight: 750;
+      letter-spacing: 1px;
+    }
+
+    .settings-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .settings-row label {
+      width: 61px;
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .settings-row input {
+      min-width: 0;
+      flex: 1;
+      height: 27px;
+      padding: 0 8px;
+      border: 1px solid rgba(255, 239, 207, 0.18);
+      border-radius: 8px;
+      background: #10130f;
+      color: var(--text);
+      font: 10px -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    .small-action {
+      height: 27px;
+      padding: 0 10px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #3b3322;
+      font-size: 9px;
+    }
+
+    .message-list {
+      min-height: 0;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      overflow-y: auto;
+      color: #d9cfb7;
+      font-size: 8px;
+    }
+
+    .saved-message {
+      overflow: hidden;
+      padding: 3px 5px;
+      border-radius: 5px;
+      background: rgba(255, 239, 207, 0.055);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .settings-footer {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .clear-action {
+      padding: 3px 6px;
+      background: transparent;
+      color: var(--danger);
+      font-size: 8px;
+    }
+
+    @media (prefers-reduced-transparency: reduce) {
+      .widget { background: #28271f; }
+      .settings-panel { background: #28271f; }
+    }
+  </style>
 </head>
 <body>
-<div class="card" id="card">
-  <div class="close" onclick="window.close()">X</div>
-  <div class="title">MIKTIME</div>
-  <div class="head">ARCADE FOCUS TIMER</div>
-  <div class="msgs" id="msgs"></div>
-  <div class="timer" id="display">25:00</div>
-  <div class="label" id="label">FOCUS</div>
-  <div class="barwrap"><div class="bar" id="bar"></div></div>
-  <div class="health" id="health"></div>
-  <div class="btns">
-    <button class="primary" id="start">START</button>
-    <button class="warn" id="pause">PAUSE</button>
-    <button class="danger" id="reset">RESET</button>
-  </div>
-  <div class="presets">
-    <button data-m="25">25</button>
-    <button data-m="50">50</button>
-    <button data-m="15">15</button>
-    <button data-m="5">5</button>
-  </div>
-  <div class="custom">
-    <input id="mins" type="number" min="1" value="25" placeholder="MIN"/>
-    <button id="set">SET</button>
-  </div>
-  <div class="custom">
-    <input id="msg" type="text" placeholder="CUSTOM MESSAGE"/>
-    <button id="msgset">SET MSG</button>
-    <button id="msgclear">CLEAR</button>
-  </div>
-  <div class="custom">
-    <button id="corner">CORNER MODE</button>
-    <button id="normal">NORMAL MODE</button>
-  </div>
-  <div class="hint">PRESS START TO BEGIN  ·  DRAG TOP BAR TO MOVE</div>
-  <div id="resizeHandle" style="position:absolute;bottom:8px;right:10px;width:20px;height:20px;cursor:nwse-resize;-webkit-app-region:no-drag;color:#3cf2ff;font-size:18px;line-height:20px;text-align:center;">↘</div>
-</div>
-<script src="app.js"></script>
+  <main class="widget" id="card" aria-label="MikTime focus timer">
+    <header class="topline">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand">MIKTIME</span>
+      <span class="mode">FOCUS</span>
+      <span class="top-spacer"></span>
+      <button class="icon-button" id="settingsToggle" type="button" aria-label="Open settings" title="Settings">⚙</button>
+      <button class="icon-button close" id="close" type="button" aria-label="Close MikTime" title="Close">×</button>
+    </header>
+
+    <section class="timer-row" aria-live="off">
+      <div class="progress-ring" id="progressRing" role="img" aria-label="Timer progress">
+        <div class="ring-inner" id="progressPercent">100%</div>
+      </div>
+      <div class="timer-copy">
+        <div class="timer" id="display">25:00</div>
+        <div class="timer-label" id="label">Ready when you are</div>
+        <div class="message-preview" id="messagePreview"></div>
+      </div>
+    </section>
+
+    <section class="actions" aria-label="Timer controls">
+      <button class="primary-action" id="start" type="button">Start</button>
+      <button class="secondary-action" id="reset" type="button">Reset</button>
+    </section>
+
+    <nav class="presets" aria-label="Timer presets">
+      <button class="preset active" data-m="25" type="button">25 min</button>
+      <button class="preset" data-m="50" type="button">50 min</button>
+      <button class="preset" data-m="15" type="button">15 min</button>
+      <button class="preset" data-m="5" type="button">5 min</button>
+    </nav>
+
+    <section class="settings-panel" id="settingsPanel" aria-label="Timer settings">
+      <div class="settings-title">QUICK SETTINGS</div>
+      <div class="settings-row">
+        <label for="mins">Duration</label>
+        <input id="mins" type="number" min="1" max="180" value="25" aria-label="Duration in minutes">
+        <button class="small-action" id="set" type="button">Apply</button>
+      </div>
+      <div class="settings-row">
+        <label for="msg">Message</label>
+        <input id="msg" type="text" maxlength="160" placeholder="A little reminder…" aria-label="Custom message">
+        <button class="small-action" id="msgset" type="button">Add</button>
+      </div>
+      <div class="message-list" id="messageList" aria-label="Saved messages"></div>
+      <div class="settings-footer">
+        <button class="clear-action" id="msgclear" type="button">Clear messages</button>
+      </div>
+    </section>
+  </main>
+  <script src="app.js"></script>
 </body>
 </html>
-EOF
